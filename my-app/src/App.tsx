@@ -8,11 +8,12 @@ import { Game } from "./components/game";
 
 
 
-
 function App() {
 
+  // set initial value of isInRoom state to false
   const [isInRoom, setInRoom] = useState(false);
 
+  // async function to connect socket and handle any error
   const connectSocket = async () => {
     const socket = await socketService
       .connect("http://localhost:9000")
@@ -21,15 +22,15 @@ function App() {
       });
   };
 
+  // useEffect hook to call the connectSocket function only once after component mount
   useEffect(() => {
     connectSocket();
   }, []);
 
-
+  // create an object with properties isInRoom and setInRoom to pass down to child components via context
   const gameContextValue: IGameContextProps = {
     isInRoom,
     setInRoom
-    
   };
 
 

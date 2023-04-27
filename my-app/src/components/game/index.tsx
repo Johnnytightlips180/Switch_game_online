@@ -30,6 +30,7 @@ export function Game() {
   
     drawTopCard();
   
+  
     setPlayerOneCards(playerOneCards);
     setPlayerTwoCards(playerTwoCards);
   
