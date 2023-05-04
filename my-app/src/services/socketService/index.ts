@@ -1,6 +1,8 @@
 import { io, Socket } from "socket.io-client";
 import { DefaultEventsMap } from '@socket.io/component-emitter';
 
+// Manage different socket connections, disconnections
+// will use SocketService for any commication between front and back end
 class SocketService {
   public socket: Socket | null = null;
 

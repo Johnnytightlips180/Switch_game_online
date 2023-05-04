@@ -8,10 +8,15 @@ import { Game } from "./components/game";
 
 
 
-
+// Conected the front end to the server. 
 function App() {
 
   const [isInRoom, setInRoom] = useState(false);
+  const [playerSymbol, setPlayerSymbol] = useState<"1" | "2">("1");
+  const [isPlayerTurn, setPlayerTurn] = useState(false);
+  const [isGameStarted, setGameStarted] = useState(false);
+
+  
 
   const connectSocket = async () => {
     const socket = await socketService
@@ -26,9 +31,16 @@ function App() {
   }, []);
 
 
+  // Everything inside GameContext.Provider will have access to these states and gameContext
   const gameContextValue: IGameContextProps = {
     isInRoom,
-    setInRoom
+    setInRoom,
+    playerSymbol,
+    setPlayerSymbol,
+    isPlayerTurn,
+    setPlayerTurn,
+    isGameStarted,
+    setGameStarted,
     
   };
 

@@ -6,6 +6,8 @@ import {
 } from "socket-controllers";
 import { Socket, Server } from "socket.io";
 
+// Class for any new socket connection 
+// onConnect method to handle any new connections to the server.
 @SocketController()
 export class MainController {
   @OnConnect()

@@ -18,7 +18,7 @@ const VALUES = [
 ]
 
 // Deck class for the cards
-export default class Deck {
+class Deck {
   constructor(cards = freshDeck()) {
     this.cards = cards
   }
@@ -55,7 +55,7 @@ export default class Deck {
 }
 
 // Card class for a single card
-export  class Card {
+class Card {
   constructor(suit, value) {
     this.suit = suit
     this.value = value
@@ -84,3 +84,8 @@ function freshDeck() {
     })
   })
 }
+
+module.exports = {
+  Deck,
+  Card
+};

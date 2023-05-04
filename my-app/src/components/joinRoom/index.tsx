@@ -8,11 +8,13 @@ interface IJoinRoomProps {}
 
 export function JoinRoom(props: IJoinRoomProps){
 
+    // game states
     const [roomName, setRoomName] = useState("");
     const [isJoining, setJoining] = useState(false);
 
     const { setInRoom, isInRoom } = useContext(gameContext);
 
+    // use to handle when the user changes room. Waiting for an event and change room name
     const handleRoomNameChange = (e: React.ChangeEvent<any>) => {
         const value = e.target.value;
         setRoomName(value);
