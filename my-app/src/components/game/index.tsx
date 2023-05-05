@@ -1,17 +1,19 @@
+// Import required dependencies and components
 import React, { useContext, useEffect, useState } from "react";
 import gameService from "../../services/gameService";
 import socketService from "../../services/socketService";
 import { Deck, Card } from "./deck";
-
 import "./deck.css";
 import gameContext from "../../gameContext";
 
+// Start game options
 export interface IStartGame {
   start: boolean;
   symbol: "1" | "2";
 }
 
 export function Game() {
+  // State variables
   const deck = new Deck();
   deck.shuffle();
   const [playerOneCards, setPlayerOneCards] = useState<Card[]>([]);
@@ -19,7 +21,15 @@ export function Game() {
   const [topCard, setTopCard] = useState<Card | undefined>(undefined);
   const [currentPlayer, setCurrentPlayer] = useState<"1" | "2">("1");
   const [remainingCards, setRemainingCards] = useState<Card[]>([]);
+  const [hasDealt, setHasDealt] = useState<boolean>(false);
+  const [skipTurn, setSkipTurn] = useState<boolean>(false);
+  const [lastPlayedCard, setLastPlayedCard] = useState<Card | undefined>(
+    undefined
+  );
+  const [kingOfHearts, setKingOfHearts] = useState<boolean>(false);
+  const [flipDeck, setFlipDeck] = useState<Card[]>([]);
 
+  // Retrieve state variables from gameContext
   const {
     playerSymbol,
     setPlayerSymbol,
@@ -30,9 +40,11 @@ export function Game() {
   } = useContext(gameContext);
 
   const dealCards = () => {
+    // Players hand
     const playerOneCards: Card[] = [];
     const playerTwoCards: Card[] = [];
 
+    // Deal five cards to each player
     for (let i = 0; i < 5; i++) {
       const card1 = deck.pop();
       const card2 = deck.pop();
@@ -46,16 +58,16 @@ export function Game() {
       }
     }
 
+    // Set the top card and remaining cards
     const topCard = deck.pop();
-
     if (topCard) {
       setTopCard(topCard);
     }
-
     setPlayerOneCards(playerOneCards);
     setPlayerTwoCards(playerTwoCards);
     setRemainingCards(deck.getCards());
 
+    // Update the game on the server if a socket connection is available
     if (socketService.socket) {
       gameService.updateGame(
         socketService.socket,
@@ -63,56 +75,147 @@ export function Game() {
         playerTwoCards,
         topCard,
         currentPlayer,
-        remainingCards // Add this line
+        remainingCards
       );
     }
+
+    // Set hasDealt state variable to true
+    setHasDealt(true);
   };
 
   const handleCardClick = (card: Card) => {
-    if (card === topCard || currentPlayer !== playerSymbol) {
+    // Check if the move is valid before proceeding
+    if (
+      !isValidMove(card, topCard) ||
+      card === topCard ||
+      currentPlayer !== playerSymbol
+    ) {
+      // If the move is not valid or it's not the current player's turn, return without doing anything
       return;
     }
 
+    // Remove the clicked card from the player's hand and set it as the new top card
+    // Inside handleCardClick function
     if (playerSymbol === "1") {
       setPlayerOneCards(playerOneCards.filter((c) => c !== card));
       setTopCard(card);
-      setCurrentPlayer("2");
+      setLastPlayedCard(card); // Add this line
     } else if (playerSymbol === "2") {
       setPlayerTwoCards(playerTwoCards.filter((c) => c !== card));
       setTopCard(card);
-      setCurrentPlayer("1");
+      setLastPlayedCard(card); // Add this line
     }
 
+    // Check if the clicked card is a pick up two card
+    if (isPickUpTwoCard(card)) {
+      const opponentCards =
+        playerSymbol === "1" ? playerTwoCards : playerOneCards;
+      const newCards = remainingCards.splice(0, 2);
+      setRemainingCards(remainingCards.slice(2));
+      setSkipTurn(true);
+
+      // Give the opponent new cards and update their hand
+      if (playerSymbol === "1") {
+        setPlayerTwoCards([...opponentCards, ...newCards]);
+      } else if (playerSymbol === "2") {
+        setPlayerOneCards([...opponentCards, ...newCards]);
+      }
+    }
+
+    // Check if the clicked card is the King of Hearts
+    if (card.value === "K" && card.suit === "♥") {
+      const opponentCards =
+        playerSymbol === "1" ? playerTwoCards : playerOneCards;
+      const newCards = remainingCards.splice(0, 5);
+      setRemainingCards(remainingCards.slice(5));
+      setSkipTurn(true);
+
+      // Give the opponent new cards and update their hand
+      if (playerSymbol === "1") {
+        setPlayerTwoCards([...opponentCards, ...newCards]);
+      } else if (playerSymbol === "2") {
+        setPlayerOneCards([...opponentCards, ...newCards]);
+      }
+
+      // Allow the current player to play another card or pick up a new card
+      setKingOfHearts(true);
+      return;
+    }
+
+    // Check if the clicked card is a skip, pick up two, or pick up five card, and update the current player accordingly
+    if (isSkipCard(card) || isPickUpTwoCard(card) || isPickUpFiveCard(card)) {
+      setCurrentPlayer(currentPlayer === "1" ? "1" : "2");
+    } else {
+      setCurrentPlayer(currentPlayer === "1" ? "2" : "1");
+    }
+
+    // If the function was called from the player's own device, update the game state on the server
     if (socketService.socket) {
       gameService.updateGame(
         socketService.socket,
         playerOneCards.filter((c) => c !== card),
         playerTwoCards.filter((c) => c !== card),
         card,
-        currentPlayer === "1" ? "2" : "1",
+        currentPlayer === "1"
+          ? isSkipCard(card) || isPickUpTwoCard(card) || isPickUpFiveCard(card)
+            ? "1"
+            : "2"
+          : isSkipCard(card) || isPickUpTwoCard(card) || isPickUpFiveCard(card)
+          ? "2"
+          : "1",
         remainingCards
       );
     }
+    setFlipDeck([...flipDeck, card]);
   };
 
   const handleNewCardClick = () => {
-    if (remainingCards.length === 0 || currentPlayer !== playerSymbol) {
+    const lastCardIsTwo = lastPlayedCard && isPickUpTwoCard(lastPlayedCard);
+
+    // If it's not the current player's turn, return
+    if (
+      currentPlayer !== playerSymbol ||
+      (skipTurn && !lastCardIsTwo && !kingOfHearts)
+    ) {
       return;
     }
 
+    // Reset skipTurn state to false
+    setSkipTurn(false);
+
+    // If there are no remaining cards in the deck, create a new deck from the played cards
+    if (remainingCards.length === 0) {
+      const newDeck = new Deck(flipDeck.slice(0, -1)); // Exclude the last played card
+      newDeck.shuffle();
+      setRemainingCards(newDeck.getCards());
+      setFlipDeck([flipDeck[flipDeck.length - 1]]); // Keep only the last played card
+    }
+
+    // Draw a new card from the deck
     const newCard = remainingCards.shift();
     if (!newCard) {
       return;
     }
 
+    // Add the new card to the player's hand
     if (playerSymbol === "1") {
       setPlayerOneCards([...playerOneCards, newCard]);
     } else if (playerSymbol === "2") {
       setPlayerTwoCards([...playerTwoCards, newCard]);
     }
 
+    // If there are no remaining cards in the deck, create a new deck from the played cards
+    if (remainingCards.length === 0) {
+      const newDeck = new Deck(flipDeck.slice(0, -1)); // Exclude the last played card
+      newDeck.shuffle();
+      setRemainingCards(newDeck.getCards());
+      setFlipDeck([flipDeck[flipDeck.length - 1]]); // Keep only the last played card
+    }
+
+    // Change the current player
     setCurrentPlayer(currentPlayer === "1" ? "2" : "1");
 
+    // Update the game state on the server
     if (socketService.socket) {
       gameService.updateGame(
         socketService.socket,
@@ -123,28 +226,45 @@ export function Game() {
         remainingCards
       );
     }
-    
 
     console.log("Remaining cards in the deck:", remainingCards.length);
+    setKingOfHearts(false);
+  };
+
+  const isValidMove = (clickedCard: Card, topCard: Card | undefined) => {
+    // If there is no top card, the move is not valid
+    if (!topCard) {
+      return false;
+    }
+    // The move is valid if the clicked card has the same suit, value or is an ace card
+    return (
+      clickedCard.suit === topCard.suit ||
+      clickedCard.value === topCard.value ||
+      clickedCard.value === "A"
+    );
   };
 
   const handleGameUpdate = () => {
-    if (socketService.socket)
+    // Update the game state when a game update message is received from the server
+    if (socketService.socket) {
       gameService.onGameUpdate(
         socketService.socket,
-        (playerOneCards, playerTwoCards, topCard, remainingCards) => { // Add remainingCards here
+        (playerOneCards, playerTwoCards, topCard, remainingCards) => {
+          // Add remainingCards here
           setPlayerOneCards(playerOneCards);
           setPlayerTwoCards(playerTwoCards);
           setTopCard(topCard);
-          setRemainingCards(remainingCards); // Add this line
+          setRemainingCards(remainingCards);
         }
       );
+    }
   };
-  
 
   const handleGameStart = () => {
+    // When the game starts, connect to the socket service and listen for game start events
     if (socketService.socket)
       gameService.onStartGame(socketService.socket, (options) => {
+        // When the game starts, set the gameStarted state to true, playerSymbol to the assigned symbol, and playerTurn depending on who is starting
         setGameStarted(true);
         setPlayerSymbol(options.symbol);
         if (options.start) setPlayerTurn(true);
@@ -153,18 +273,20 @@ export function Game() {
   };
 
   const handleCurrentPlayerUpdate = () => {
+    // When the current player is updated, listen for the update event and update the currentPlayer state
     if (socketService.socket) {
       gameService.onCurrentPlayerUpdate(
         socketService.socket,
         (currentPlayer) => {
           setCurrentPlayer(currentPlayer);
+          setSkipTurn(false);
         }
       );
     }
   };
 
-  // Add this function to handle the received deck
   const handleDeckUpdate = () => {
+    // When the deck is updated, listen for the update event and update the remainingCards state
     if (socketService.socket) {
       gameService.onDeckUpdate(socketService.socket, (deck) => {
         setRemainingCards(deck);
@@ -172,18 +294,66 @@ export function Game() {
     }
   };
 
-  // Add handleDeckUpdate to the useEffect hook
+  const checkGameOver = () => {
+    // Check if the game is over
+    if (
+      hasDealt &&
+      (playerOneCards.length === 0 || playerTwoCards.length === 0)
+    ) {
+      // If the game is over, show an alert message and reset the game
+      alert("Game over!");
+      handleGameReset();
+    }
+  };
+
+  const handleGameReset = () => {
+    // Reset the game state by setting all state variables to their initial values
+    setPlayerOneCards([]);
+    setPlayerTwoCards([]);
+    setTopCard(undefined);
+    setRemainingCards([]);
+    setHasDealt(false);
+
+    if (socketService.socket) {
+      // Reset game on the server side
+      gameService.resetGame(socketService.socket);
+    }
+  };
+
+  const isSkipCard = (card: Card) => {
+    // Check if a card is a skip card
+    return ["7", "8", "J"].includes(card.value);
+  };
+
+  const isPickUpTwoCard = (card: Card) => {
+    // Check if a card is a pick up two card
+    return card.value === "2";
+  };
+
+  const isPickUpFiveCard = (card: Card) => {
+    // Check if a card is a pick up five card
+    return card.value === "K" && card.suit === "♥";
+  };
+
   useEffect(() => {
     handleGameUpdate();
     handleGameStart();
     handleCurrentPlayerUpdate();
-    handleDeckUpdate(); // Add this line
+    handleDeckUpdate();
   }, []);
+
+  // Add a new useEffect hook to call checkGameOver() whenever the playerOneCards or playerTwoCards states change
+  useEffect(() => {
+    checkGameOver();
+  }, [playerOneCards, playerTwoCards]);
 
   return (
     <div>
       <div className="wrapper">
         <div className="App">
+          {!isGameStarted && (
+            <h2>Waiting for another play to join the game lobby</h2>
+          )}
           <div className="board">
             <h3>Player one</h3>
             <div className="player-one">
