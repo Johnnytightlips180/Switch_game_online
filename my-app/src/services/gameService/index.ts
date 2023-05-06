@@ -83,6 +83,19 @@ class GameService {
     socket.emit("reset_game"); 
   }
   
+  // Broadcast action message
+public async broadcastActionMessage(socket: Socket, message: string) {
+  socket.emit("broadcast_action_message", { message });
+}
+
+// Listen for action message updates
+public async onActionMessageUpdate(socket: Socket, listener: (message: string) => void) {
+  socket.on("on_action_message_update", (message) => {
+    listener(message);
+  });
+}
+
+  
 }
 
 export default new GameService();

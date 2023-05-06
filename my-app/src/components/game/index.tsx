@@ -14,8 +14,6 @@ export interface IStartGame {
 
 export function Game() {
   // State variables
-  const deck = new Deck();
-  deck.shuffle();
   const [playerOneCards, setPlayerOneCards] = useState<Card[]>([]);
   const [playerTwoCards, setPlayerTwoCards] = useState<Card[]>([]);
   const [topCard, setTopCard] = useState<Card | undefined>(undefined);
@@ -28,6 +26,8 @@ export function Game() {
   );
   const [kingOfHearts, setKingOfHearts] = useState<boolean>(false);
   const [flipDeck, setFlipDeck] = useState<Card[]>([]);
+  const [actionMessage, setActionMessage] = useState<string>("");
+
 
   // Retrieve state variables from gameContext
   const {
@@ -40,33 +40,37 @@ export function Game() {
   } = useContext(gameContext);
 
   const dealCards = () => {
+    // Create a new deck and shuffle it
+    const newDeck = new Deck();
+    newDeck.shuffle();
+  
     // Players hand
     const playerOneCards: Card[] = [];
     const playerTwoCards: Card[] = [];
-
+  
     // Deal five cards to each player
     for (let i = 0; i < 5; i++) {
-      const card1 = deck.pop();
-      const card2 = deck.pop();
-
+      const card1 = newDeck.pop();
+      const card2 = newDeck.pop();
+  
       if (card1) {
         playerOneCards.push(card1);
       }
-
+  
       if (card2) {
         playerTwoCards.push(card2);
       }
     }
-
+  
     // Set the top card and remaining cards
-    const topCard = deck.pop();
+    const topCard = newDeck.pop();
     if (topCard) {
       setTopCard(topCard);
     }
     setPlayerOneCards(playerOneCards);
     setPlayerTwoCards(playerTwoCards);
-    setRemainingCards(deck.getCards());
-
+    setRemainingCards(newDeck.getCards());
+  
     // Update the game on the server if a socket connection is available
     if (socketService.socket) {
       gameService.updateGame(
@@ -78,10 +82,11 @@ export function Game() {
         remainingCards
       );
     }
-
+  
     // Set hasDealt state variable to true
     setHasDealt(true);
   };
+  
 
   const handleCardClick = (card: Card) => {
     // Check if the move is valid before proceeding
@@ -167,6 +172,24 @@ export function Game() {
       );
     }
     setFlipDeck([...flipDeck, card]);
+
+    if (isSkipCard(card)) {
+      setActionMessage("The player has played a skip card. Your turn is skipped.");
+    } else if (isPickUpTwoCard(card)) {
+      setActionMessage(
+        "The player has played a pick up 2 cards card. Pick up 2 cards and skip your turn."
+      );
+    } else if (isPickUpFiveCard(card)) {
+      setActionMessage(
+        "The player has played a pick up 5 cards card. Pick up 5 cards and skip your turn."
+      );
+    } else {
+      setActionMessage(""); // Clear the action message for non-action cards
+    }
+
+    if (socketService.socket) {
+      gameService.broadcastActionMessage(socketService.socket, actionMessage);
+    }
   };
 
   const handleNewCardClick = () => {
@@ -302,23 +325,30 @@ export function Game() {
     ) {
       // If the game is over, show an alert message and reset the game
       alert("Game over!");
-      handleGameReset();
+      resetGame();
     }
   };
+  
+
+  const resetGame = () => {
+    // Reset the game state
+    handleGameReset();
+  };
+  
 
   const handleGameReset = () => {
     // Reset the game state by setting all state variables to their initial values
     setPlayerOneCards([]);
     setPlayerTwoCards([]);
     setTopCard(undefined);
-    setRemainingCards([]);
     setHasDealt(false);
-
+  
     if (socketService.socket) {
       // Reset game on the server side
       gameService.resetGame(socketService.socket);
     }
   };
+  
 
   const isSkipCard = (card: Card) => {
     // Check if a card is a skip card
@@ -335,12 +365,23 @@ export function Game() {
     return card.value === "K" && card.suit === "♥";
   };
 
+  
+
   useEffect(() => {
     handleGameUpdate();
     handleGameStart();
     handleCurrentPlayerUpdate();
     handleDeckUpdate();
+  
+    // Add the action message listener
+    if (socketService.socket) {
+      gameService.onActionMessageUpdate(socketService.socket, (message: string) => {
+        setActionMessage(message);
+      });
+    }
   }, []);
+  
+  
 
   // Add a new useEffect hook to call checkGameOver() whenever the playerOneCards or playerTwoCards states change
   useEffect(() => {
@@ -355,18 +396,26 @@ export function Game() {
             <h2>Waiting for another play to join the game lobby</h2>
           )}
           <div className="board">
-            <h3>Player one</h3>
+          <div className="action-message">
+          {actionMessage}
+        </div>
             <div className="player-one">
-              {playerSymbol === "1" &&
-                playerOneCards.map((card, index) => (
-                  <div
-                    key={index}
-                    className={`card ${card.color}`}
-                    onClick={() => handleCardClick(card)}
-                  >
-                    {card.value} {card.suit}
-                  </div>
-                ))}
+              <div className="turn-indicator-player-one">
+                Player One {playerSymbol === "1" && currentPlayer === "1" && " - It's your turn!"}
+              </div>
+              {playerSymbol === "1"
+                ? playerOneCards.map((card, index) => (
+                    <div
+                      key={index}
+                      className={`card ${card.color}`}
+                      onClick={() => handleCardClick(card)}
+                    >
+                      {card.value} {card.suit}
+                    </div>
+                  ))
+                : playerOneCards.map((_, index) => (
+                    <div key={index} className="card blocked-card"></div>
+                  ))}
             </div>
             <button className="deal-btn" onClick={dealCards}>
               Deal
@@ -382,18 +431,23 @@ export function Game() {
               ) : null}
             </div>
             <div className="player-two">
-              {playerSymbol === "2" &&
-                playerTwoCards.map((card, index) => (
-                  <div
-                    key={index}
-                    className={`card ${card.color}`}
-                    onClick={() => handleCardClick(card)}
-                  >
-                    {card.value} {card.suit}
-                  </div>
-                ))}
+              <div className="turn-indicator-player-two">
+                Player Two {playerSymbol === "2" && currentPlayer === "2" && " - It's your turn!"}
+              </div>
+              {playerSymbol === "2"
+                ? playerTwoCards.map((card, index) => (
+                    <div
+                      key={index}
+                      className={`card ${card.color}`}
+                      onClick={() => handleCardClick(card)}
+                    >
+                      {card.value} {card.suit}
+                    </div>
+                  ))
+                : playerTwoCards.map((_, index) => (
+                    <div key={index} className="card blocked-card"></div>
+                  ))}
             </div>
-            <h3>Player two</h3>
           </div>
         </div>
       </div>

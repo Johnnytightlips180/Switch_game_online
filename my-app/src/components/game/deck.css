@@ -38,6 +38,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    
   }
   
   .player-one .card {
@@ -72,7 +73,7 @@
   .deal-btn {
     position: absolute;
     top: 35%;
-    left: 10%;
+    left: 5%;
     transform: translate(0, -50%);
     padding: 20px 40px;
     background-color: blue;
@@ -85,7 +86,7 @@
   .new-card-btn {
     position: absolute;
     top: 50%;
-    left: 10%;
+    left: 5%;
     transform: translate(0, -50%);
     padding: 20px 40px;
     background-color: blue;
@@ -114,6 +115,45 @@
     align-items: center;
     font-size: 3rem;
   }
+
+  .blocked-card {
+    background-color: blue;
+    width: 5rem;
+    height: 7rem;
+    margin: 0.2rem;
+    border-radius: 5px;
+  }
+  
+  .turn-indicator-player-one {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    position: absolute;
+    top: 2%
+  }
+
+  .turn-indicator-player-two {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    position: absolute;
+    bottom:2%
+  }
+  
+  .action-message {
+    position: absolute;
+    left: 70%;
+    bottom: 40%;
+    width: 30%;
+    height: 15%;
+    background-color: #f8f8f8;
+    padding: 1rem;
+    margin: 1rem 0;
+    border: 1px solid #ccc;
+    text-align: center;
+    font-size: 1rem;
+  }
+  
   
   .card.red {
     color: red;

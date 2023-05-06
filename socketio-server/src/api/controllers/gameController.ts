@@ -34,5 +34,9 @@ export class GameController {
 
     // Add this line to broadcast the activeSuit
     socket.to(gameRoom).emit("on_active_suit_update", message.activeSuit);
+
+    
   }
+
+  
 }
