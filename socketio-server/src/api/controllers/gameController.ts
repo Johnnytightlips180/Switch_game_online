@@ -9,7 +9,8 @@ import { Server, Socket } from "socket.io";
 
 @SocketController() // Decorator for creating a controller for handling WebSocket events
 export class GameController {
-  private getSocketGameRoom(socket: Socket): string { // Private method to get the game room of the socket
+  private getSocketGameRoom(socket: Socket): string {
+    // Private method to get the game room of the socket
     const socketRooms = Array.from(socket.rooms.values()).filter(
       (r) => r !== socket.id // Get all socket rooms except the socket's ID (since the socket is always in its own room)
     );
@@ -30,13 +31,21 @@ export class GameController {
     socket.to(gameRoom).emit("on_current_player_update", message.currentPlayer);
 
     // Add this line to broadcast the remainingCards
-    socket.to(gameRoom).emit("on_remaining_cards_update", message.remainingCards);
+    socket
+      .to(gameRoom)
+      .emit("on_remaining_cards_update", message.remainingCards);
 
     // Add this line to broadcast the activeSuit
     socket.to(gameRoom).emit("on_active_suit_update", message.activeSuit);
-
-    
   }
 
-  
+  @OnMessage("broadcast_action_message")
+  public async broadcastActionMessage(
+    @SocketIO() io: Server,
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() message: any
+  ) {
+    const gameRoom = this.getSocketGameRoom(socket);
+    socket.to(gameRoom).emit("on_action_message_update", message.message);
+  }
 }

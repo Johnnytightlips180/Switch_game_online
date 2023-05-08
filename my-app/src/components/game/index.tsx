@@ -28,7 +28,6 @@ export function Game() {
   const [flipDeck, setFlipDeck] = useState<Card[]>([]);
   const [actionMessage, setActionMessage] = useState<string>("");
 
-
   // Retrieve state variables from gameContext
   const {
     playerSymbol,
@@ -43,25 +42,25 @@ export function Game() {
     // Create a new deck and shuffle it
     const newDeck = new Deck();
     newDeck.shuffle();
-  
+
     // Players hand
     const playerOneCards: Card[] = [];
     const playerTwoCards: Card[] = [];
-  
+
     // Deal five cards to each player
     for (let i = 0; i < 5; i++) {
       const card1 = newDeck.pop();
       const card2 = newDeck.pop();
-  
+
       if (card1) {
         playerOneCards.push(card1);
       }
-  
+
       if (card2) {
         playerTwoCards.push(card2);
       }
     }
-  
+
     // Set the top card and remaining cards
     const topCard = newDeck.pop();
     if (topCard) {
@@ -70,7 +69,7 @@ export function Game() {
     setPlayerOneCards(playerOneCards);
     setPlayerTwoCards(playerTwoCards);
     setRemainingCards(newDeck.getCards());
-  
+
     // Update the game on the server if a socket connection is available
     if (socketService.socket) {
       gameService.updateGame(
@@ -82,11 +81,10 @@ export function Game() {
         remainingCards
       );
     }
-  
+
     // Set hasDealt state variable to true
     setHasDealt(true);
   };
-  
 
   const handleCardClick = (card: Card) => {
     // Check if the move is valid before proceeding
@@ -173,32 +171,34 @@ export function Game() {
     }
     setFlipDeck([...flipDeck, card]);
 
+    let message = ""; // Declare message variable
+
     if (isSkipCard(card)) {
-      setActionMessage("The player has played a skip card. Your turn is skipped.");
+      const nextPlayer = playerSymbol === "1" ? "2" : "1";
+      message = `Player ${playerSymbol} has played a skip card. Player ${nextPlayer} turn is skipped.`;
     } else if (isPickUpTwoCard(card)) {
-      setActionMessage(
-        "The player has played a pick up 2 cards card. Pick up 2 cards and skip your turn."
-      );
+      const nextPlayer = playerSymbol === "1" ? "2" : "1";
+      message = `Player ${playerSymbol} has played a pick up 2 cards card. Player ${nextPlayer} must pick up 2 cards and skip their turn.`;
     } else if (isPickUpFiveCard(card)) {
-      setActionMessage(
-        "The player has played a pick up 5 cards card. Pick up 5 cards and skip your turn."
-      );
-    } else {
-      setActionMessage(""); // Clear the action message for non-action cards
+      const nextPlayer = playerSymbol === "1" ? "2" : "1";
+      message = `Player ${playerSymbol} has played a pick up 5 cards card. Player ${nextPlayer} must pick up 5 cards and skip their turn.`;
     }
 
+    // Move setActionMessage call inside this condition
     if (socketService.socket) {
-      gameService.broadcastActionMessage(socketService.socket, actionMessage);
+      gameService.broadcastActionMessage(socketService.socket, message);
+      setActionMessage(message); // Set the action message for the current player
     }
   };
 
   const handleNewCardClick = () => {
     const lastCardIsTwo = lastPlayedCard && isPickUpTwoCard(lastPlayedCard);
+    const lastCardIsSkip = lastPlayedCard && isSkipCard(lastPlayedCard);
+    const lastCardIsFive = lastPlayedCard && isPickUpFiveCard(lastPlayedCard)
 
-    // If it's not the current player's turn, return
     if (
       currentPlayer !== playerSymbol ||
-      (skipTurn && !lastCardIsTwo && !kingOfHearts)
+      (skipTurn && !lastCardIsTwo && !kingOfHearts && !lastCardIsSkip && !lastCardIsFive)
     ) {
       return;
     }
@@ -323,18 +323,45 @@ export function Game() {
       hasDealt &&
       (playerOneCards.length === 0 || playerTwoCards.length === 0)
     ) {
-      // If the game is over, show an alert message and reset the game
-      alert("Game over!");
-      resetGame();
+      // If the game is over, notify the winner and the loser
+      if (playerOneCards.length === 0) {
+        notifyGameOver("1", "2");
+      } else {
+        notifyGameOver("2", "1");
+      }
     }
   };
+
+  const notifyGameOver = (winner: "1" | "2", loser: "1" | "2") => {
+    // If the current player is the winner, display a winning message
+    if (playerSymbol === winner) {
+      setActionMessage("Congratulations! You have won the game!");
+    }
+    // If the current player is the loser, display a losing message
+    else if (playerSymbol === loser) {
+      setActionMessage("Sorry, you have lost the game.");
+    }
+  
+    // Notify the other player of the game outcome
+    if (socketService.socket) {
+      gameService.broadcastActionMessage(
+        socketService.socket,
+        playerSymbol === winner
+          ? "Player 1 has won the game!"
+          : "Player 2 has won the game!"
+      );
+    }
+  
+    // Reset the game
+    resetGame();
+  };
+  
   
 
   const resetGame = () => {
     // Reset the game state
     handleGameReset();
   };
-  
 
   const handleGameReset = () => {
     // Reset the game state by setting all state variables to their initial values
@@ -342,13 +369,12 @@ export function Game() {
     setPlayerTwoCards([]);
     setTopCard(undefined);
     setHasDealt(false);
-  
+
     if (socketService.socket) {
       // Reset game on the server side
       gameService.resetGame(socketService.socket);
     }
   };
-  
 
   const isSkipCard = (card: Card) => {
     // Check if a card is a skip card
@@ -365,23 +391,22 @@ export function Game() {
     return card.value === "K" && card.suit === "♥";
   };
 
-  
-
   useEffect(() => {
     handleGameUpdate();
     handleGameStart();
     handleCurrentPlayerUpdate();
     handleDeckUpdate();
-  
+
     // Add the action message listener
     if (socketService.socket) {
-      gameService.onActionMessageUpdate(socketService.socket, (message: string) => {
-        setActionMessage(message);
-      });
+      gameService.onActionMessageUpdate(
+        socketService.socket,
+        (message: string) => {
+          setActionMessage(message);
+        }
+      );
     }
   }, []);
-  
-  
 
   // Add a new useEffect hook to call checkGameOver() whenever the playerOneCards or playerTwoCards states change
   useEffect(() => {
@@ -396,12 +421,13 @@ export function Game() {
             <h2>Waiting for another play to join the game lobby</h2>
           )}
           <div className="board">
-          <div className="action-message">
-          {actionMessage}
-        </div>
+            <div className="action-message">{actionMessage}</div>
             <div className="player-one">
               <div className="turn-indicator-player-one">
-                Player One {playerSymbol === "1" && currentPlayer === "1" && " - It's your turn!"}
+                Player One{" "}
+                {playerSymbol === "1" &&
+                  currentPlayer === "1" &&
+                  " - It's your turn!"}
               </div>
               {playerSymbol === "1"
                 ? playerOneCards.map((card, index) => (
@@ -432,7 +458,10 @@ export function Game() {
             </div>
             <div className="player-two">
               <div className="turn-indicator-player-two">
-                Player Two {playerSymbol === "2" && currentPlayer === "2" && " - It's your turn!"}
+                Player Two{" "}
+                {playerSymbol === "2" &&
+                  currentPlayer === "2" &&
+                  " - It's your turn!"}
               </div>
               {playerSymbol === "2"
                 ? playerTwoCards.map((card, index) => (
