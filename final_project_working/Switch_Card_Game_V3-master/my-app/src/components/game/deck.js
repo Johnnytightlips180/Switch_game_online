@@ -65,15 +65,6 @@ class Card {
   get color() {
     return this.suit === "♣" || this.suit === "♠" ? "black" : "red"
   }
-
-  // returns the html elelent of the card 
-  getHTML() {
-    const cardDiv = document.createElement("div")
-    cardDiv.innerText = this.suit
-    cardDiv.classList.add("card", this.color)
-    cardDiv.dataset.value = `${this.value} ${this.suit}`
-    return cardDiv
-  }
 }
 
 // this function returns a fresh deck of cards 

@@ -46,6 +46,15 @@ export class GameController {
     @MessageBody() message: any
   ) {
     const gameRoom = this.getSocketGameRoom(socket);
-    socket.to(gameRoom).emit("on_action_message_update", message.message);
+    io.in(gameRoom).emit("on_action_message_update", message.message);
+  }
+
+  @OnMessage("reset_game")
+  public async resetGame(
+    @SocketIO() io: Server,
+    @ConnectedSocket() socket: Socket
+  ) {
+    const gameRoom = this.getSocketGameRoom(socket);
+    io.in(gameRoom).emit("reset_game");
   }
 }

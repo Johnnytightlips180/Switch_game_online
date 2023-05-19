@@ -34,6 +34,8 @@ export function Game() {
   } = useContext(gameContext);
 
   const dealCards = () => {
+    setActionMessage("");
+
     // Create a new deck and shuffle it
     const newDeck = new Deck();
     newDeck.shuffle();
@@ -79,6 +81,12 @@ export function Game() {
 
     // Set hasDealt state variable to true
     setHasDealt(true);
+
+    // Broadcast that the action message has been cleared
+  if (socketService.socket) {
+    gameService.broadcastActionMessage(socketService.socket, "");
+  }
+  
   };
 
   const handleCardClick = (card: Card) => {
@@ -97,11 +105,9 @@ export function Game() {
     if (playerSymbol === "1") {
       setPlayerOneCards(playerOneCards.filter((c) => c !== card));
       setTopCard(card);
-  
     } else if (playerSymbol === "2") {
       setPlayerTwoCards(playerTwoCards.filter((c) => c !== card));
       setTopCard(card);
-      
     }
 
     // Check if the clicked card is a pick up two card
@@ -132,7 +138,6 @@ export function Game() {
       } else if (playerSymbol === "2") {
         setPlayerOneCards([...opponentCards, ...newCards]);
       }
-      
     }
 
     // Check if the clicked card is a skip, pick up two, or pick up five card, and update the current player accordingly
@@ -185,7 +190,6 @@ export function Game() {
     if (currentPlayer !== playerSymbol) {
       return;
     }
-    
 
     // If there are no remaining cards in the deck, create a new deck from the played cards
     if (remainingCards.length === 0) {
@@ -271,8 +275,6 @@ export function Game() {
       });
   }, [setGameStarted, setPlayerSymbol, setPlayerTurn]);
 
-
-
   const handleCurrentPlayerUpdate = useCallback(() => {
     if (socketService.socket) {
       gameService.onCurrentPlayerUpdate(
@@ -298,38 +300,41 @@ export function Game() {
     setPlayerTwoCards([]);
     setTopCard(undefined);
     setHasDealt(false);
-  
+    
+
     if (socketService.socket) {
       // Reset game on the server side
       gameService.resetGame(socketService.socket);
     }
   }, [setPlayerOneCards, setPlayerTwoCards, setTopCard, setHasDealt]);
-  
 
   const resetGame = useCallback(() => {
     // Reset the game state
     handleGameReset();
   }, [handleGameReset]);
-  
 
-  const notifyGameOver = useCallback((winner: "1" | "2", loser: "1" | "2") => {
-    if (playerSymbol === winner) {
-      setActionMessage("Congratulations! You have won the game!");
-    } else if (playerSymbol === loser) {
-      setActionMessage("Sorry, you have lost the game.");
-    }
+  const notifyGameOver = useCallback(
+    (winner: "1" | "2", loser: "1" | "2") => {
+      if (playerSymbol === winner) {
+        setActionMessage("Congratulations! You have won the game!");
+      } else if (playerSymbol === loser) {
+        setActionMessage("Sorry, you have lost the game.");
+      }
 
-    if (socketService.socket) {
-      gameService.broadcastActionMessage(
-        socketService.socket,
-        playerSymbol === winner
-          ? "Player 1 has won the game!"
-          : "Player 2 has won the game!"
-      );
-    }
+      if (socketService.socket) {
+        gameService.broadcastActionMessage(
+          socketService.socket,
+          winner === "1"
+            ? "Player 1 has won the game!"
+            : "Player 2 has won the game!"
+        );
+      }
 
-    resetGame();
-  }, [playerSymbol, setActionMessage, resetGame]);
+      resetGame();
+    },
+    [playerSymbol, setActionMessage, resetGame]
+  );
+
 
   const checkGameOver = useCallback(() => {
     // Check if the game is over
@@ -344,7 +349,7 @@ export function Game() {
         notifyGameOver("2", "1");
       }
     }
-  }, [hasDealt, playerOneCards, playerTwoCards, notifyGameOver]);  // Adding necessary dependencies to the useCallback hook
+  }, [hasDealt, playerOneCards, playerTwoCards, notifyGameOver]); // Adding necessary dependencies to the useCallback hook
 
   const isSkipCard = (card: Card) => {
     // Check if a card is a skip card
@@ -372,17 +377,29 @@ export function Game() {
       gameService.onActionMessageUpdate(
         socketService.socket,
         (message: string) => {
-          setActionMessage(message);
+          if (message === "Player 1 has won the game!") {
+            setActionMessage(playerSymbol === "1" ? "Congratulations! You have won the game!" : "Sorry, you have lost the game.");
+          } else if (message === "Player 2 has won the game!") {
+            setActionMessage(playerSymbol === "2" ? "Congratulations! You have won the game!" : "Sorry, you have lost the game.");
+          } else {
+            setActionMessage(message);
+          }
         }
       );
     }
-  }, [handleGameUpdate, handleGameStart, handleCurrentPlayerUpdate, handleDeckUpdate]);  // Adding necessary dependencies to the useEffect hook
+  }, [
+    handleGameUpdate,
+    handleGameStart,
+    handleCurrentPlayerUpdate,
+    handleDeckUpdate,
+    playerSymbol, // You will need to add this new dependency
+  ]); 
 
 
- // Add a new useEffect hook to call checkGameOver() whenever the playerOneCards or playerTwoCards states change
+  // Add a new useEffect hook to call checkGameOver() whenever the playerOneCards or playerTwoCards states change
   useEffect(() => {
     checkGameOver();
-  }, [checkGameOver]);  // Adding checkGameOver to the dependencies
+  }, [checkGameOver]); // Adding checkGameOver to the dependencies
 
   return (
     <div>
@@ -414,9 +431,14 @@ export function Game() {
                     <div key={index} className="card blocked-card"></div>
                   ))}
             </div>
-            <button className="deal-btn" onClick={dealCards}>
+            <button
+              className="deal-btn"
+              onClick={dealCards}
+              disabled={playerSymbol !== "1"}
+            >
               Deal
             </button>
+
             <button className="new-card-btn" onClick={handleNewCardClick}>
               New Card
             </button>
