@@ -22,6 +22,7 @@ export function Game() {
   const [hasDealt, setHasDealt] = useState<boolean>(false);
   const [flipDeck, setFlipDeck] = useState<Card[]>([]);
   const [actionMessage, setActionMessage] = useState<string>("");
+  const [rulesVisible, setRulesVisible] = useState(false);
 
   // Retrieve state variables from gameContext
   const {
@@ -83,10 +84,9 @@ export function Game() {
     setHasDealt(true);
 
     // Broadcast that the action message has been cleared
-  if (socketService.socket) {
-    gameService.broadcastActionMessage(socketService.socket, "");
-  }
-  
+    if (socketService.socket) {
+      gameService.broadcastActionMessage(socketService.socket, "");
+    }
   };
 
   const handleCardClick = (card: Card) => {
@@ -300,7 +300,6 @@ export function Game() {
     setPlayerTwoCards([]);
     setTopCard(undefined);
     setHasDealt(false);
-    
 
     if (socketService.socket) {
       // Reset game on the server side
@@ -335,7 +334,6 @@ export function Game() {
     [playerSymbol, setActionMessage, resetGame]
   );
 
-
   const checkGameOver = useCallback(() => {
     // Check if the game is over
     if (
@@ -366,6 +364,38 @@ export function Game() {
     return card.value === "K" && card.suit === "♥";
   };
 
+  const handleRulesClick = () => {
+    setRulesVisible(!rulesVisible);
+  };
+
+  function Rules() {
+    return (
+      <div className="rules">
+        <h2>Game Rules</h2>
+        <h3>Valid Move:</h3>
+        <ul>
+          <li>Card with the same suit as the flipped card</li>
+          <li>Card with same number as the flipped card</li>
+          <li>Aces are wild and can be played at any time</li>
+        </ul>
+        <h3>Trick Cards:</h3>
+        <h4>Skip Cards:</h4>
+        <ul>
+          <li>Cards with the number 7, 8, and Jacks</li>
+        </ul>
+        <h4>Pick Up 2 Cards:</h4>
+        <ul>
+          <li>Any card with the number 2</li>
+        </ul>
+        <h4>Pick Up 5 Cards:</h4>
+        <ul>
+          <li>King of hearts</li>
+        </ul>
+      </div>
+    );
+  }
+  
+
   useEffect(() => {
     handleGameUpdate();
     handleGameStart();
@@ -378,9 +408,17 @@ export function Game() {
         socketService.socket,
         (message: string) => {
           if (message === "Player 1 has won the game!") {
-            setActionMessage(playerSymbol === "1" ? "Congratulations! You have won the game!" : "Sorry, you have lost the game.");
+            setActionMessage(
+              playerSymbol === "1"
+                ? "Congratulations! You have won the game!"
+                : "Sorry, you have lost the game."
+            );
           } else if (message === "Player 2 has won the game!") {
-            setActionMessage(playerSymbol === "2" ? "Congratulations! You have won the game!" : "Sorry, you have lost the game.");
+            setActionMessage(
+              playerSymbol === "2"
+                ? "Congratulations! You have won the game!"
+                : "Sorry, you have lost the game."
+            );
           } else {
             setActionMessage(message);
           }
@@ -393,8 +431,7 @@ export function Game() {
     handleCurrentPlayerUpdate,
     handleDeckUpdate,
     playerSymbol, // You will need to add this new dependency
-  ]); 
-
+  ]);
 
   // Add a new useEffect hook to call checkGameOver() whenever the playerOneCards or playerTwoCards states change
   useEffect(() => {
@@ -404,6 +441,10 @@ export function Game() {
   return (
     <div>
       <div className="wrapper">
+        <button onClick={handleRulesClick} className="rules-btn">
+          Rules
+        </button>
+        {rulesVisible && <Rules />}
         <div className="App">
           {!isGameStarted && (
             <h2>Waiting for another play to join the game lobby</h2>

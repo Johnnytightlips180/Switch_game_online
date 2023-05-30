@@ -53,15 +53,19 @@ export function JoinRoom(props: IJoinRoomProps) {
     setRoomName(value);
   };
 
+  // Function for when the joinRoom form is submitted 
   const joinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Get the socket from the socketService
     const socket = socketService.socket;
 
+    // If the room name is empty or the socket is not available, do nothing
     if (!roomName || roomName.trim() === "" || !socket) return;
 
     setJoining(true);
 
+    // Attempt to join the game room using gameService, and catch any errors
     const joined = await gameService.joinGameRoom(socket, roomName).catch((err) => {
       alert(err);
     });
@@ -74,6 +78,7 @@ export function JoinRoom(props: IJoinRoomProps) {
     setJoining(false);
   };
 
+  
   return (
     <form onSubmit={joinRoom}>
       <div className="joinGameContainer">
